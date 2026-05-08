@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DJI Flight Record Visualizer</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="page-shell">
+    <aside class="control-panel">
+      <form id="analyzeForm" class="panel-block form-stack">
+        <div class="field-grid">
+          <label class="field">
+            <span>API Key</span>
+            <input id="apiKeyInput" name="api_key" type="password" placeholder="Enter DJI log API key" autocomplete="off" required>
+          </label>
+
+          <label class="field">
+            <span>FlightRecord.txt</span>
+            <input id="fileInput" class="file-input-native" name="flight_record" type="file" accept=".txt,text/plain" required>
+            <div class="file-picker-row">
+              <button id="filePickerButton" type="button" class="ghost-button file-picker-button">Choose File</button>
+              <span id="filePickerLabel" class="file-picker-label">No file selected</span>
+            </div>
+          </label>
+        </div>
+
+        <div class="button-row tight">
+          <button id="analyzeButton" type="submit" class="primary-button">Analyze</button>
+          <button id="sampleButton" type="button" class="ghost-button" {% if not sample_available %}disabled{% endif %}>Sample</button>
+        </div>
+
+        <p id="messageBar" class="message-bar hidden"></p>
+      </form>
+
+      <section id="summaryPanel" class="panel-block compact-block">
+        <div class="section-header compact">
+          <h2>Summary</h2>
+        </div>
+        <div class="summary-grid compact-grid">
+          <article class="summary-card">
+            <span class="label">Aircraft</span>
+            <strong id="summaryAircraft">-</strong>
+          </article>
+          <article class="summary-card">
+            <span class="label">Serial</span>
+            <strong id="summarySerial">-</strong>
+          </article>
+          <article class="summary-card">
+            <span class="label">Flight Time</span>
+            <strong id="summaryDuration">-</strong>
+          </article>
+          <article class="summary-card">
+            <span class="label">H Distance</span>
+            <strong id="summaryDistance">-</strong>
+          </article>
+          <article class="summary-card">
+            <span class="label">Peak Altitude</span>
+            <strong id="summaryHeight">-</strong>
+          </article>
+          <article class="summary-card">
+            <span class="label">Peak Speed</span>
+            <strong id="summarySpeed">-</strong>
+          </article>
+        </div>
+      </section>
+
+      <section id="livePanel" class="panel-block compact-block playback-live-panel">
+        <div class="section-header compact">
+          <h2>Current Playback</h2>
+        </div>
+        <div class="playback-live-grid">
+          <article class="metric-card focus-card">
+            <span>Altitude</span>
+            <strong id="liveAltitudeNow">-</strong>
+          </article>
+          <article class="metric-card focus-card">
+            <span>H Speed</span>
+            <strong id="liveHorizontalNow">-</strong>
+          </article>
+          <article class="metric-card focus-card">
+            <span>V Speed</span>
+            <strong id="liveVerticalNow">-</strong>
+          </article>
+        </div>
+      </section>
+    </aside>
+
+    <main id="viewerPanel" class="viewer-panel">
+      <div class="viewer-topbar">
+        <div class="tab-row" role="tablist" aria-label="View modes">
+          <button id="dashboardTabButton" type="button" class="tab-button active" data-tab-target="dashboard">Dashboard</button>
+          <button id="mapTabButton" type="button" class="tab-button" data-tab-target="map">Map</button>
+          <button id="sceneTabButton" type="button" class="tab-button" data-tab-target="scene">3D Motion</button>
+        </div>
+        <p id="viewerTitle" class="viewer-title">FLIGHT DASHBOARD</p>
+      </div>
+
+      <div class="viewer-stage">
+        <section id="dashboardPanel" class="tab-panel active" data-tab-panel="dashboard">
+          <div id="dashboardView" class="dashboard-shell"></div>
+        </section>
+
+        <section id="mapPanel" class="tab-panel" data-tab-panel="map">
+          <div class="canvas-stack">
+            <div id="leafletMap" class="visual-canvas hidden"></div>
+            <canvas id="fallbackMap" class="visual-canvas"></canvas>
+          </div>
+        </section>
+
+        <section id="scenePanel" class="tab-panel" data-tab-panel="scene">
+          <div id="sceneCanvas" class="visual-canvas">
+            <div id="sceneRenderHost" class="scene-render-host"></div>
+            <div id="sceneOverlay" class="scene-overlay"></div>
+          </div>
+        </section>
+      </div>
+
+      <section id="viewerControls" class="viewer-controls panel-block compact-block">
+        <div class="viewer-controls-top">
+          <div class="button-row tight playback-row">
+            <button id="playButton" type="button" class="primary-button icon-button" aria-label="Play" title="Play">
+              <span class="icon-play" aria-hidden="true"></span>
+            </button>
+            <button id="pauseButton" type="button" class="ghost-button icon-button" aria-label="Pause" title="Pause">
+              <span class="icon-pause" aria-hidden="true"><span></span><span></span></span>
+            </button>
+            <button id="resetButton" type="button" class="ghost-button icon-button" aria-label="Reset" title="Reset">
+              <span class="icon-reset" aria-hidden="true">&#8635;</span>
+            </button>
+            <label class="speed-field" for="speedSelect">
+              <span>Rate</span>
+              <select id="speedSelect">
+                <option value="0.25">0.25x</option>
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1x</option>
+                <option value="2">2x</option>
+                <option value="4">4x</option>
+              </select>
+            </label>
+          </div>
+          <span id="timelineLabel" class="section-note">0.0s / 0.0s</span>
+        </div>
+        <input id="timelineRange" type="range" min="0" max="0" step="0.01" value="0">
+      </section>
+    </main>
+  </div>
+
+  <script>
+    window.APP_CONFIG = {
+      sampleAvailable: {{ "true" if sample_available else "false" }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+Source: VeRoViz Cesium Viewer Plugin
+Site: https://veroviz.org/documentation.html
+Package: https://pypi.org/project/veroviz/
+Asset: veroviz/models/drone.glb
+License: MIT
